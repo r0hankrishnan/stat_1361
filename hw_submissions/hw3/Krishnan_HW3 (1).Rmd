@@ -1,0 +1,384 @@
+---
+title: "Homework 3"
+author: "Rohan Krishnan"
+date: "2024-02-05"
+output: pdf_document
+---
+## Problem 1
+
+**Not required to turn in anything for this problem.**
+
+```{r, include = FALSE, eval = FALSE}
+#Load ISLR2 library and examine stock data
+library(ISLR2)
+names(ISLR2::Smarket)
+dim(Smarket)
+summary(Smarket)
+pairs(Smarket, cex = 0.20)
+
+#Generate pairwise correlations (without qualitative Direction)
+cor(Smarket[,-9])
+
+#Plot volume
+attach(Smarket)
+plot(Volume, cex = 0.2)
+
+#4.7.2 Logistic Regression
+
+#Run logistic regression to predict Direction
+glm.fits <- glm(Direction ~ .-Year-Today, data = Smarket, family = binomial)
+summary(glm.fits)
+
+coef(glm.fits)
+summary(glm.fits)$coef
+summary(glm.fits)$coef[,4]
+
+#Examine predicted probabilities
+glm.probs <- predict(glm.fits, type = "response")
+contrasts(Direction)
+glm.probs[1:10]
+
+#Create "up or down" prediction vector
+glm.pred <- rep("Down", 1250)
+glm.pred[glm.probs > 0.50] <- "Up"
+
+#Create confusion matrix
+table(glm.pred, Direction)
+mean(glm.pred == Direction)
+
+#Create train and test set and refit model
+train <- (Year < 2005)
+Smarket.2005 <- Smarket[!train,]
+dim(Smarket.2005)
+Direction.2005 <- Direction[!train]
+
+glm.fits <- glm(Direction ~ . - Year - Today, data = Smarket, family = binomial, subset = train)
+glm.probs <- predict(glm.fits, Smarket.2005, type = "response")
+
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > 0.50] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+mean(glm.pred!=Direction.2005)
+
+#Refit with just Lag1 and Lag2
+glm.fits <- glm(Direction ~ Lag1 + Lag2, data = Smarket, family = binomial, subset = train)
+glm.probs <- predict(glm.fits, Smarket.2005, type = "response")
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > 0.50] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+
+#Calculate Direction when Lag1 = 1.2 and Lag2 = 1.1
+predict(glm.fits,
+        newdata = 
+          data.frame(Lag1 = c(1.2, 1.5), Lag2 = c(1.1, -0.8)),
+        type = "response")
+
+#4.7.3 Linear Discriminant Analysis
+
+#Load MASS library and run LDA using training and test sets
+library(MASS)
+lda.fit <- lda(Direction ~ Lag1 + Lag2, data = Smarket, 
+               subset = train)
+lda.fit
+plot(lda.fit)
+
+#Predict with LDA
+lda.pred <- predict(lda.fit, Smarket.2005)
+names(lda.pred)
+
+lda.class <- lda.pred$class
+table(lda.class, Direction.2005)
+mean(lda.class == Direction.2005)
+
+sum(lda.pred$posterior[,1] >= 0.50)
+sum(lda.pred$posterior[,1] < 0.50)
+lda.pred$posterior[1:20,1]
+lda.class[1:20]
+
+sum(lda.pred$posterior[,1] > 0.9)
+
+#4.7.4 Quadratic Discriminant Analysis
+
+#Fit a quadratic discriminant analysis using train set
+qda.fit <- qda(Direction ~ Lag1 + Lag2, data = Smarket, subset = train)
+qda.fit
+qda.class <- predict(qda.fit, Smarket.2005)$class
+table(qda.class, Direction.2005)
+mean(qda.class == Direction.2005)
+
+#4.7.5 Naive Bayes
+
+#Load e1071 library and run naive bayes 
+library(e1071)
+nb.fit <- naiveBayes(Direction ~ Lag1 + Lag2, data = Smarket, subset = train)
+nb.fit
+mean(Lag1[train][Direction[train]=="Down"])
+sd(Lag1[train][Direction[train]=="Down"])
+
+nb.class <- predict(nb.fit, Smarket.2005)
+table(nb.class, Direction.2005)
+mean(nb.class == Direction.2005)
+
+nb.preds <- predict(nb.fit, Smarket.2005, type = "raw")
+nb.preds[1:5,]
+
+#4.7.6 K-Nearest Neighbors
+
+#Create train and test matrices
+library(class)
+train.X <- cbind(Lag1, Lag2)[train,]
+test.X <- cbind(Lag1, Lag2)[!train,]
+train.Direction <- Direction[train]
+
+#Run knn function
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 1)
+table(knn.pred, Direction.2005)
+mean(knn.pred == Direction.2005)
+
+#Repeat with k = 3
+knn.pred <- knn(train.X, test.X, train.Direction, k = 3)
+table(knn.pred, Direction.2005)
+mean(knn.pred == Direction.2005)
+
+#Run knn on Caravan data set
+dim(Caravan)
+attach(Caravan)
+summary(Purchase)
+
+#Standardize data (except Purchase)
+standardized.X <- scale(Caravan[,-86])
+var(Caravan[,1])
+var(standardized.X[,1])
+
+#Fit knn with k = 1 on training data
+test <- 1:1000
+train.X <- standardized.X[-test,]
+test.X <- standardized.X[test,]
+train.Y <- Purchase[-test]
+test.Y <- Purchase[test]
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Y, k = 1)
+mean(test.Y != knn.pred)
+mean(test.Y != "No")
+table(knn.pred, test.Y)
+knn.pred <- knn(train.X, test.X, train.Y, k = 3)
+table(knn.pred, test.Y)
+knn.pred <- knn(train.X, test.X, train.Y, k = 5)
+table(knn.pred, test.Y)
+
+#Fit logistic regression to compare
+glm.fits <- glm(Purchase ~ ., data = Caravan, family = binomial, subset = -test)
+glm.probs <- predict(glm.fits, Caravan[test,], type = "response")
+
+
+```
+ 
+## Problem 2
+### (A) ISLR Conceptual Exercise 4
+(a) For observations in the range [0,0.05] and [0.95, 1], we use less than 10% of the observations since we hit the upper and lower bounds of the uniform distribution. For observations in the range [0.05,0.95], we use 10% of the observations (5% on either side). To calculate the average fraction of observations used, we can take a weighted average. Assuming the special cases use around 7.5% of the observations (somewhere between 5% and 10%), we can say that 10% of cases will only use 7.5% of observations. Given this assumption, we can calculate $(0.075 \times 0.10) + (0.10 \times 0.90) \times 100 = 9.75\%$
+
+(b) Since each observation needs to be in the range of **both** $X_1$ and $X_2$, we have to multiply their respective fractions of observations. Thus, we get $0.0975^2 \times 100 = 0.95\%$.
+
+(c) As the number of features $p$ increases, the more constrained each reference point becomes (as it must be within 10% of each of the $p$ features). So, for $p = 100$ features, the fraction of available observations would be $0.0975^100 \times 100 = 7.951729e-100 \approx 0\%$
+
+(d) Since KNN uses nearby points' values to assign a value to the point of interest, it encounters the same dimensionality problem that we observe above. As the number of features $p$ increases, the fraction of observations that are "nearby" rapidly becomes smaller (based on choice of k) points for the algorithm to use to infer a value for the point of interest.
+
+(e) The hypercube must contain 10%, on average, of the observations. When $p = 1$, the hypercube is a line segment with length $l = 0.10$. As the dimensions, $p$, increase, the area of the cube will always contain 10% of the observations. Thus, given $p$ dimensions, we can calculate the length of each side of the hypercube via $l^p = 0.10$. For $p = 2$, the length of each side would be $l = \sqrt{0.10} = 0.32$. For $p = 100$, the length of each side would be $l = 0.10^{1/100} = 0.98$. It appears that as $p$ increases, the length of each side of the hypercube approaches 1, which is the entire space of potential observations. This means that as we consider more features, we would need a larger and larger search area to cover 10% of observations.
+
+### (B) Argue that the line "non-parametric approaches often perform poorly when *p* is large" is actually not quite the whole picture. 
+
+As seen in part (A), the amount of observations being used is important when considering the effectiveness of a non-parametric method. If the number of observations being considered is large enough, a non-parametric method could perform well on the data (a.k.a. the hypercube encompasses most of the data).
+
+### (C) The point that ISLR Ch. 4 Exercise 4 is trying to illustrate, is that in high dimensional
+space, you are often forced to __________.
+
+Overfit (use more and more of the feature space to effectively "train" the model).
+
+### (D) How would you respond to the notion that "more data is never a bad thing"
+
+One way to respond to the above notion given the previous parts of this problem is to note that, given more data, you can reference more points when using non-parametric methods, which allows for better performance. While there are concern surrounding dimensionality, there are methods of selecting important features and reducing dimensionality that make it more desirable to have more data rather than less. 
+
+## Problem 3
+### ISLR Chapter 4 Conceptual Exercise 5
+**(a)**
+Even if the decision boundary is linear, we expect the more flexible QDA to perform better on the training set. However, the LDA would more closely model the linear decision boundaries on new data and would be expected to perform better on the testing set.
+
+**(b)**
+If the decision boundary is non-linear, we expect the QDA to pick up on more of the complex relationship than the LDA and to perform better on both the training and testing set. 
+
+**(c)**
+In general, we would expect the test prediction accuracy of QDA to increase relative to LDA as $n$ increases because there is more data to extract the more complex relationships between observations.
+
+**(d)**
+False, QDA could over fit the training data and perform worse on the test set.
+
+### ISLR Chapter 4 Conceptual Exercise 8
+In k=1 KNN, the training error is 0 because each point is perfectly matched. This means that the test error is 36%. Given this information, we should use the logistic regression as it only has a test error of 30%.
+
+### ISLR Chapter 4 Conceptual Exercise 12
+**(a)**
+The log odds of orange versus apple is $\hat\beta_0 + \hat\beta_1x$.
+
+**(b)**
+The log odds of our friend's model is 
+$(\hat\alpha_{orange0} - \hat\alpha_{apple0}) +(\hat\alpha_{orange1} - \hat\alpha_{apple1})x$
+
+**(c)**
+There is no way to determine the specific value of each parameter. However,given the above answers, our friends' model would have $(\hat\alpha_{orange0} - \hat\alpha_{apple0})=2$ and $(\hat\alpha_{orange1} - \hat\alpha_{apple1}) = -1$. 
+
+**(d)**
+My estimates would be $\hat\beta_0 = (\hat\alpha_{orange0} - \hat\alpha_{apple0}) = 1.2-3 = -1.8$ and $\hat\beta_1 = (\hat\alpha_{orange1} - \hat\alpha_{apple1}) = -2 - 0.6 = -2.6$.
+
+**(e)**
+The models are identical but just expressed differently so they should agree every time.
+
+## Problem 4
+### ISLR Chapter 4 Applied Exercise 14
+**(a)**
+```{r}
+#Load ISLR 2 Library
+library(ISLR2)
+#Create mpg01
+mpg01<- rep(0,392)
+mpg01[Auto$mpg > median(Auto$mpg)] <- 1
+#Create data frame with Auto and mpg01
+df <- data.frame(Auto[,-1], mpg01)
+```
+
+**(b)**
+```{r}
+#Generate box plots grouped by mpg01
+par(mfrow = c(2,4))
+for(i in c(1:7)){
+  boxplot(df[,i]~df$mpg01, main = colnames(df)[i])
+}
+```
+
+It appears that there is a clear difference in feature values when the mpg is greater than the median versus not. This indicates some relationship that should be explored further.
+
+```{r}
+#Generate pair plot
+pairs(df[,c(1:7,9)])
+```
+
+There appears to be clear differences in distribution for several of the variables with $mpg01$. In particular, cylinders, weight, and displacement seem to have some relationship with $mpg01$.
+
+**(c)**
+```{r}
+#Set seed and split into train and test sets
+set.seed(100)
+sample <- sample(c(TRUE, FALSE), nrow(df),
+                 replace = TRUE, prob = c(0.70, 0.30))
+train <- df[sample,]
+test <- df[!sample,]
+```
+
+**(d)**
+```{r}
+#Load MASS library and run LDA using training and test sets
+library(MASS)
+lda.fit <- lda(mpg01 ~ cylinders + weight + displacement, data = train)
+#Predict with LDA and calculate test error rate
+lda.class <- predict(lda.fit, test)$class
+mean(lda.class != test$mpg01)
+```
+
+**(e)**
+```{r}
+#Perform QDA on train and test sets
+qda.fit <- qda(mpg01 ~ cylinders + weight + displacement, data = train)
+#Generate QDA predictions and calculate test error rate
+qda.class <- predict(qda.fit, test)$class
+mean(qda.class != test$mpg01)
+```
+
+**(f)**
+```{r}
+#Run logistic regression
+glm.fit <- glm(mpg01 ~ cylinders + weight + displacement, data = train, family = binomial)
+#Generate glm predictions and calculate test error rate
+glm.pred <- predict(glm.fit, test, type = "response")>0.50
+mean(glm.pred != test$mpg01)
+```
+
+**(g)**
+```{r}
+#Load library and perform naive bayes
+library(e1071)
+nb.fit <- naiveBayes(mpg01 ~ cylinders + weight + displacement, data = train)
+#Generate nb predictions and calculate test error rate
+nb.pred <- predict(nb.fit, test)
+mean(nb.pred != test$mpg01)
+```
+
+```{r}
+#Load library and perform KNNs
+library(class)
+set.seed(500)
+knn.fit1 <- knn(train[,c(1,2,4)], test[,c(1,2,4)], train$mpg01, k = 1)
+knn.fit2 <- knn(train[,c(1,2,4)], test[,c(1,2,4)], train$mpg01, k = 5)
+knn.fit3 <- knn(train[,c(1,2,4)], test[,c(1,2,4)], train$mpg01, k = 10)
+knn.fit4 <- knn(train[,c(1,2,4)], test[,c(1,2,4)], train$mpg01, k = 20)
+#Calculate test error rates
+mean(knn.fit1 != test$mpg01)
+mean(knn.fit2 != test$mpg01)
+mean(knn.fit3 != test$mpg01)
+mean(knn.fit4 != test$mpg01)
+```
+
+It appears that a value of k = 5 performs best on the test set with the above parameters. 
+
+## Problem 5
+**(a)**
+There appears to be a heavy bias towards admitting male applicants at UCB based on the first graphic. It appears that around 2/3 of the admits are male despite the rejected pool being nearly even between men and women. 
+
+```{r}
+#Male admission rate
+1198/(1198+1493)
+```
+
+```{r}
+#Female admission rate
+557/(557+1278)
+```
+
+From the above calculations, men nearly had a 15% higher acceptance rate compared to women.
+
+**(b)**
+These plots show a different story. Here, it appears that in Departments A and B, there were very few women who even applied while the majority of applicants were men (as shown through acceptances and rejections). The other departments either have a relatively even amount of applicants and acceptances across men and women (D and F) or have more women applicants and acceptances (C and E). 
+
+**(c)**
+When looking at overall admissions, it appears that UCB is biased towards admitting men. However, when broken down by department that bias seems to disappear. 
+
+**(d)**
+Women could be applying to more selective departments with smaller sizes whereas men are applying to larger departments with higher acceptance rates. This would cause there to be more men than women overall without biased admissions in any one department at UCB. 
+
+**(e)**
+```{r}
+#Create UCB admissions data frame
+data(UCBAdmissions)
+Adm <- as.integer(UCBAdmissions)[(1:(6*2))*2-1]
+Rej <- as.integer(UCBAdmissions)[(1:(6*2))*2]
+Dept <- gl(6,2,6*2,labels=c("A","B","C","D","E","F"))
+Sex <- gl(2,1,6*2,labels=c("Male","Female"))
+Ratio <- Adm/(Rej+Adm)
+berk <- data.frame(Adm,Rej,Sex,Dept,Ratio)
+head(berk)
+#Perform logistic regression on data
+LogReg.gender <- glm(cbind(Adm, Rej) ~ Sex, data = berk, family = binomial("logit"))
+summary(LogReg.gender)
+```
+
+The above regression indicates that being female has a highly statistically significant negative effect on an applicants probability of admission (-0.61). 
+
+**(f)**
+```{r}
+#Refit logistic regression using Sex and Department
+LogReg.genDep <- glm(cbind(Adm, Rej) ~ Sex + Dept, data = berk, family = binomial("logit"))
+summary(LogReg.genDep)
+```
+
+The coefficient of $SexFemale$ become positive with a large p-value, meaning that it is not statistically significantly different from zero. We also see several of the departments having a statistically significant negative effect on probability of admission, indicating that department selectiveness plays a significant role in the distribution of genders at UCB. This indicates some type of selection across genders into specific departments. Overall, we've shown that by including potential confounding variables into a regression, our variable of interest's coefficient can completely flip and even lose its statistical significance, highlighting the importance of thinking through the research problem completely and having sound logic when designing a regression. 

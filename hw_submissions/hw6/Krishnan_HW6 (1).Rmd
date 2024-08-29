@@ -1,0 +1,224 @@
+---
+title: "Homework 6"
+author: "Rohan Krishnan"
+date: "2024-03-22"
+output: pdf_document
+---
+## Problem 1
+**No submission required**
+
+## Problem 2
+### ISLR Chapter 7 Conceptual Exercise 5
+**(a)** As $\lambda \to \infty$, $\hat{g}_2$ is more flexible because it penalizes a higher order of $g(x)$ so it will have the smaller training RSS
+
+**(b)** As $\lambda \to \infty$, we cannot be certain which function will perform better but there is more of a chance of $\hat{g}_2$ over fitting the data so $\hat{g}_1$ may have a smaller test RSS. 
+
+**(c)** For $\lambda = 0$, there is no penalty so both functions are the same. Therefore, the training and testing RSS will be the same.
+
+## Problem 3
+### ISLR Chapter 7 Applied Exercise 8
+```{r}
+#Load libraries
+library(tidyverse)
+library(ISLR2)
+library(boot)
+library(splines)
+
+#Examine relationships
+pairs(Auto, cex = 0.4, pch = 19)
+```
+
+To focus on a non-linear relationship, I will use weight to predict mpg with 5 models, a regular linear glm, a polynomial, a step wise, and two splines. 
+
+```{r, warning = FALSE}
+#GLM
+set.seed(50)
+fit <- glm(mpg ~ weight, data = Auto)
+err <- cv.glm(Auto, fit, K = 10)$delta[1]
+
+#Polynomial
+fit.1 <- glm(mpg~poly(weight, 4), data = Auto)
+err.1 <- cv.glm(Auto, fit.1, K = 10)$delta[1]
+
+#Step
+quants <- quantile(Auto$weight)
+Auto$weight_step <- cut(Auto$weight, breaks = quants, include.lowest = TRUE)
+fit.2 <- glm(mpg ~ weight_step, data = Auto)
+err.2 <- cv.glm(Auto, fit.2, K = 10)$delta[1]
+
+#Regression Spline
+fit.3 <- glm(mpg ~ splines::bs(weight, df = 4), data = Auto)
+err.3 <- cv.glm(Auto, fit.3, K = 10)$delta[1]
+
+#Natural Spline
+fit.4 <- glm(mpg ~ splines::ns(weight, df = 4), data = Auto)
+err.4 <- cv.glm(Auto, fit.4, K = 10)$delta[1]
+
+#Compare fits
+anova(fit, fit.1, fit.2, fit.3, fit.4)
+
+#Display errors
+err.all <- c(err, err.1, err.2, err.3, err.4); err.all
+
+#Graph
+x <- seq(min(Auto$weight), max(Auto$weight), length.out=1000)
+pred <- data.frame(
+  x = x,
+  "Linear" = predict(fit, data.frame(weight = x)),
+  "Polynomial" = predict(fit.1, data.frame(weight = x)),
+  "Stepwise" = predict(fit.2, data.frame(weight_step = cut(x, breaks = quants, include.lowest = TRUE))),
+  "Regression spline" = predict(fit.3, data.frame(weight = x)),
+  "Natural spline" = predict(fit.4, data.frame(weight = x)),
+  check.names = FALSE
+)
+
+pred <- pivot_longer(pred, -x)
+ggplot(Auto, aes(weight, mpg)) +
+  geom_point(color = alpha("light green", 0.4)) +
+  geom_line(data = pred, aes(x, value, color = name)) +
+  theme_bw()
+```
+
+The regression spline appeared to have the lowest error. 
+
+### ISLR Chapter 7 Applied Exercise 9
+**(a)**
+```{r}
+#Polynomial regression
+fit.a <- glm(nox ~ poly(dis, 3), data = Boston)
+summary(fit.a)
+
+#Plot
+plot(nox ~ dis, Boston, col = alpha("grey", 0.5), pch = 19)
+lines(seq(min(Boston$dis), max(Boston$dis), length.out = 1000), 
+      predict(fit.a, data.frame(dis = seq(min(Boston$dis), max(Boston$dis), length.out = 1000))),
+              col = "blue", lty = 2)
+```
+
+**(b)**
+```{r}
+#Generate polynomial fits from 1:10
+poly.fits <- lapply(1:10, function(i) glm(nox ~ poly(dis, i), data = Boston))
+
+#Plot
+x.axis <- seq(min(Boston$dis), max(Boston$dis), length.out=1000)
+pred <- data.frame(lapply(poly.fits, function(a) predict(a, data.frame(dis = x.axis))))
+colnames(pred) <- 1:10
+pred$x <- x.axis
+pred <- pivot_longer(pred, !x)
+ggplot(Boston, aes(dis, nox)) + 
+  geom_point(color = alpha("grey", 0.5)) + 
+  geom_line(data = pred, aes(x, value, color = name)) + 
+  theme_minimal()
+
+#Get RSS
+do.call(anova, poly.fits)[,2]
+```
+
+**(c)**
+```{r}
+#CV to find optimal polynomial
+opt.selection <- sapply(1:10, function(i){
+  fit <- glm(nox ~ poly(dis, i), data = Boston)
+  cv.glm(Boston, fit, K = 10)$delta[1]
+})
+
+which.min(opt.selection)
+```
+
+Based on cross validation, the optimal degress is 3 because higher values being to overfit and increasee the error on the data.
+
+**(d)**
+```{r}
+#Fit
+fit.d <- glm(nox ~ splines::bs(dis, df = 4), data = Boston)
+summary(fit)
+
+#Plot
+plot(nox ~ dis, Boston, col = alpha("grey", 0.50), pch = 19)
+lines(seq(min(Boston$dis), max(Boston$dis), length.out = 1000),
+      predict(fit.d, data.frame(dis = 
+                                seq(min(Boston$dis), max(Boston$dis), length.out = 1000))),
+              col = "blue", lty = 2)
+```
+
+In regression splines, the knots are chosen based on quantiles of the data. 
+
+**(e)**
+```{r}
+#Generate fits 
+spline.fits <- lapply(3:10, function(i){
+  glm(nox ~ bs(dis, df = i), data = Boston)
+})
+
+#Plot
+pred <- data.frame(lapply(spline.fits, function(b) predict(b, data.frame(dis = x.axis))))
+colnames(pred) <- 3:10
+pred$x <- x.axis
+pred <- pivot_longer(pred, !x)
+ggplot(Boston, aes(dis, nox)) + 
+  geom_point(color = alpha("grey", 0.50)) + 
+  geom_line(data = pred, aes(x, value, color = name)) +
+  theme_minimal()
+```
+The highest df splines appear to be beginning to over fitting the data.
+
+**(f)**
+```{r, warning = FALSE}
+set.seed(52)
+opt.spline <- sapply(3:10, function(i){
+  fit <- glm(nox ~ splines::bs(dis, df = i), data = Boston)
+  cv.glm(Boston, fit, K = 10)$delta[1]
+})
+which.min(opt.spline)
+```
+
+Selected 8 degrees of freedom. 
+
+### ISLR Chapter 7 Applied Exercise 10
+**(a)**
+```{r}
+library(leaps)
+
+set.seed(60)
+train <- rep(TRUE, nrow(College))
+train[sample(1:nrow(College), nrow(College) * 1/3)] <- FALSE
+fit.a <- regsubsets(Outstate ~ ., data = College[train,], nvmax = 17, method = "forward")
+
+par(mfrow = c(2,2))
+plot(summary(fit.a)$bic, type = "b", main = "BIC")
+plot(summary(fit.a)$cp, type = "b", main = "CP")
+plot(summary(fit.a)$adjr2, type = "b", main = "Adjusted R2")
+
+coef(fit.a, id = 6)
+```
+
+Pick 6 since CP and BIC slightly increase after 6. 
+
+**(b)**
+```{r}
+library(gam)
+fit.b <- gam(Outstate ~ Private + s(Room.Board, 2) + s(Terminal, 2) + s(perc.alumni,2) +
+               s(Expend,2) + s(Grad.Rate, 2), data = College[train,])
+
+plot(fit.b)
+```
+
+There appears to be one non linear variables but the other variables look linear. 
+
+**(c)**
+```{r}
+pred <- predict(fit.b, College[!train,])
+err.gam <- mean((College$Outstate[!train] - pred)^2)
+1 - err.gam / mean((College$Outstate[!train] - mean(College$Outstate[!train]))^2)
+
+```
+
+The error appears quite large though that could be because of the units of tuition. The R2 is around 0.76 which is quite good. 
+
+**(d)**
+```{r}
+summary(fit.b)
+```
+
+There appears to be significant evidence of a non-linear relationship for Expend. 

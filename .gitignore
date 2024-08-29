@@ -47,3 +47,8 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+.DS_Store
+hw_submissions/ (1).DS_Store
+hw_submissions/hw4/Krishnan_HW4 (1).aux
+hw_submissions/hw2/Krishnan_HW2 (1).log
+hw_submissions/ (1).Rhistory

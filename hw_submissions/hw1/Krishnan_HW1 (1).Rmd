@@ -1,0 +1,291 @@
+---
+title: "Homework 1"
+author: "Rohan Krishnan"
+date: "2024-01-24"
+output: pdf_document
+---
+## Problem 1:
+No submission required for this problem. 
+
+## Problem 2:
+### ISLR2 Conceptual Exercise 1
+(a) A flexible model would be better as it can learn potentially complex relationships between the predictors that may not have closed form solutions given the large amount of observations. 
+
+(b) An inflexible model would be better as there is risk of multicollinearity or some random association between predictors. 
+
+(c) A flexible model would be better as it can create a complex non-linear solution (that may not even be able to be represented in closed form) suing the data. An inflexible model would likely have a higher bias and would not be capturing the true relationship between predictors. 
+
+(d) An inflexible model would perform better here because it would decrease the variance of the model and result in more reproducible results. A flexible model with high variance may output highly different answers depending on the training and test split. 
+
+### ISLR2 Conceptual Exercise 2
+(a) This is a regression problem in which we are looking to perform inference to understand the contributing factors of CEO salary. In this problem, n = 500 and p = 3.
+
+(b) This is a classification problem in which we are looking to predict whether a new product will be a success or failure. In this problem, n = 20 and p = 13. 
+
+(c) This is a regression problem in which we are looking to predict the % change in the USD/Euro exchange rate. In this problem, n = 52 and p = 3.
+
+### ISLR2 Conceptual Exercise 5
+A flexible model is able to more closely model highly complex and nonlinear patterns and do better with large amounts of data. However, they are prone to over fitting and can be black-box methods, making it difficult to infer any information about the problem. On the other hand, inflexible models are highly interpretable and need fewer observations. However, they have a higher bias as they are fitting a specified closed form model to the data and are thus unable to be as specific in their modelling.
+
+## Problem 3:
+(a) To change this from a regression to classification problem, we could group the CEO salaries into different buckets (e.g. low, average, high) and try to understand which factors affect what bucket a CEO's salary would fall into. 
+
+(b) To change this form a classification problem to a regression problem, we could code a success as a 1 and failure as 0 and create a regression model to determine the probability of the new product succeeding. 
+
+(c) To change this from a regression problem to a classification problem, we can group the % changes in the exchange rate into several buckets, perhaps by drastic of a change it is or by what type of arbitrage opportunity is available.  We can then create a classification model to predict when the % change in the exchange rate will reach our predefined levels. 
+
+## Problem 4: 
+### ISLR2 Applied Exercise 8
+(a)
+```{r}
+#Set directory and load in data
+setwd("~/Downloads/")
+college <- read.csv("College.csv")
+```
+
+(b)
+```{r}
+#Turn row names into first column
+View(college)
+rownames(college) <- college[, 1]
+View(college)
+
+#Remove first column of data with row names
+college <- college[,-1]
+View(college)
+```
+
+(c) i.
+```{r}
+#Generate summary of data set
+summary(college)
+```
+
+(c) ii. 
+```{r}
+#Convert "Private" variable to 1/0 from Yes/No
+college$Private <- ifelse(college$Private == "Yes", 1, 0)
+
+#Scatter plot matrix of first 10 columns
+pairs(college[,1:10])
+```
+
+(c) iii.
+```{r}
+#Side-by-side box plots of private and public colleges' out of state tuition 
+plot(college$Outstate ~ as.factor(college$Private), 
+     xlab = "Private School (1 = Yes, 0 = No)", 
+     ylab = "Out of State Tuition",
+     main = "Applied Exercise 8 Problem (c)iii.")
+```
+
+(c) iv.
+```{r}
+#Create new "Elite" variable
+Elite <- rep("No", nrow(college))
+Elite[college$Top10perc > 50] <- "Yes"
+Elite <- as.factor(Elite)
+college <- data.frame(college, Elite)
+
+#View summary of Elite variable
+summary(college$Elite)
+
+#Generate side-by-side box plot of elite vs non-elite collges' out of state tuition
+plot(college$Outstate ~ college$Elite,
+     xlab = "Elite College",
+     ylab = "Out of State Tuition",
+     main = "Applied Exercise 8 Problem (c)iv.")
+```
+
+(c) v.
+```{r}
+#Generate histograms for some of the quantitative variables
+par(mfrow = c(2,2))
+for(i in c(5,10,15,20)){
+  hist(college$Outstate, breaks = i, 
+       main = "Out of State Tuition")
+}
+
+par(mfrow = c(2,2))
+for(i in c(5,10,15,20)){
+  hist(college$Apps, breaks = i,
+       main = "# Applications Received")
+}
+
+par(mfrow = c(2,2))
+for(i in c(5,20, 50,100)){
+  hist(college$Enroll, breaks = i,
+       main = "# New Students Enrolled")
+}
+
+par(mfrow = c(2,2))
+for(i in c(5, 20, 50, 100)){
+  hist(college$F.Undergrad, breaks = i,
+       main = "Full Time Undergraduates")
+}
+```
+
+(c) vi.
+```{r}
+chisq.test(college$Elite, college$Private) #At a 5% significance level, there is statistically significant evidence of a relationship 
+#between the proportion of a university's class exceeding 50% is 
+#from the top 10% of their high school and whether or not the college is private. 
+
+
+```
+
+### ISLR Applied Exercise 9
+```{r}
+setwd("~/Downloads/")
+Auto <- read.table("Auto.data", header = T, na.strings = "?", stringsAsFactors = T)
+Auto <- na.omit(Auto)
+```
+
+(a)
+The variables mpg, displacement, horsepower, weight, acceleration and year are quantitative variables. The variables cylinders, origin, and name are qualitative. Cylinders is listed as quantitative, however there are only certain categories of cylinders for cars so it can be treated as qualitative. 
+
+(b)
+```{r}
+ranges <- list()
+num_var <- vector()
+for(i in colnames(Auto)){
+  if(is.numeric(Auto[,i]) == TRUE){
+    num_var <- rbind(num_var, i)
+    Variable <- range(Auto[,i])
+    ranges <- cbind(ranges, Variable)
+    colnames(ranges) <- num_var
+    rownames(ranges) <- c("Lower", "Upper")
+  }
+}
+
+ranges 
+```
+
+(c)
+```{r}
+for(i in colnames(Auto)){
+  if(is.numeric(Auto[,i]) == TRUE){
+    print(paste("Mean of", i,":", mean(Auto[,i]), "| Sd of",i,":", sd(Auto[,i])))
+  }
+}
+```
+
+(d)
+```{r}
+Auto_subset <- Auto[-c(10:85),]
+
+sub_ranges <- list()
+num_var <- vector()
+for(i in colnames(Auto_subset)){
+  if(is.numeric(Auto_subset[,i]) == TRUE){
+    num_var <- rbind(num_var, i)
+    Variable <- range(Auto_subset[,i])
+    sub_ranges <- cbind(sub_ranges, Variable)
+    colnames(sub_ranges) <- num_var
+    rownames(sub_ranges) <- c("Lower", "Upper")
+  }
+}
+sub_ranges
+
+for(i in colnames(Auto_subset)){
+  if(is.numeric(Auto_subset[,i]) == TRUE){
+    print(paste("Mean of", i,":", mean(Auto_subset[,i]), "| Sd of",i,":", sd(Auto_subset[,i])))
+  }
+}
+```
+
+(e)
+```{r}
+plot(Auto$mpg ~ Auto$displacement) #Appears to be a exponential relationship
+
+plot(Auto$mpg ~ Auto$horsepower) #Looks very similar to displacement, negative correlation that would be even more linear if using a log transform. 
+
+plot(Auto$mpg ~ Auto$weight) #Looks slightly more linear than the above two plots. Negative linear reationship.
+
+plot(Auto$mpg ~ Auto$acceleration) #Appears to be a very weak positive linear relationship.
+
+plot(Auto$mpg ~ as.factor(Auto$origin)) #Although the whiskers have high overlap, the median mpg appears to increase across origin. 
+
+plot(Auto$mpg ~ as.factor(Auto$year)) #There seems to be a lot of overlap across years and no clear growth or decline in median mpg. 
+
+plot(Auto$mpg ~ as.factor(Auto$cylinders)) #It appears 4 and 5 cylinder cars tend to have higher mpg. 
+```
+
+(f)
+The plots suggest several variables may be useful in predict mpg. The variables displacement, horsepower and weight all had very similar looking graphs with a somewhat apparent negative exponential relationship between them and mpg. This means that regressing mpg on the log values of those variables may prove highly powerful for prediction. The box and whisker plots indicate that origin and cylinders may also be useful categorical factors to look at, as the median mpg appears to change across categories. Acceleration seems to have a very slight positive relationship with mpg but may be able to be accounted for by proxy using horsepower and weight. 
+
+
+### ISLR Applied Exercise 10
+(a)
+```{r}
+library(ISLR2)
+Boston <- Boston
+nrow(Boston) #There are 506 rows in the data set.
+
+ncol(Boston) #There are 13 columns in the data set
+
+names(Boston) #Each variable (column) represents a feature of a respective suburb (row) in Boston. 
+```
+
+(b)
+```{r}
+pairs(Boston[,1:6]) #Crim and nox appear to have a log relationship, rm and nox have a slight negative linear relationship. 
+#Many of the relationships appear highly nonlinear. 
+pairs(Boston[,7:13]) #Seems to be some more linear relationships. 
+#Medv and lstat seem to have an exponential relationship. 
+#Dis and lstat seem to have a negative linear relationship. 
+#Age and dis also appear to have a negative linear relationship. 
+```
+
+(c)
+Yes, it appears as nox increases so does crim up until a certain asymptotic value. 
+
+(d)
+```{r}
+par(mfrow = c(3, 1))
+hist(Boston$crim, breaks = 20)
+hist(Boston$tax, breaks = 20)
+hist(Boston$ptratio, breaks = 20)
+
+#Crime rate seems to be left skewed, going from 0 to 80. 
+#Tax seems to have an upper outlier around 680 
+#and pupil-teacher ratios also seem to have an upper outlier close to 22. 
+```
+
+(e)
+```{r}
+sum(Boston$chas) #There are 35 tracts that bound the Charles river.
+```
+
+(f)
+```{r}
+median(Boston$ptratio) #The median ptratio is 19.05
+```
+
+(g)
+```{r}
+Boston[Boston$medv == min(Boston$medv),]
+
+summary(Boston)
+#They seem to have higher than median ptratios and 
+#much higher crime and nox values. 
+#They also appear to be much older than average. 
+```
+
+(h)
+```{r}
+sum(Boston$rm > 7)
+sum(Boston$rm > 8)
+
+Boston$greater_8 <- NA
+Boston$greater_8[Boston$rm > 8] <- TRUE
+Boston$greater_8[Boston$rm <= 8] <- FALSE
+
+for(i in c(1:13)){
+  plot(Boston[,i] ~ as.factor(Boston[,14]), main = colnames(Boston[i]))
+}
+
+#Bigger dwellings (>8) seem to have a higher median value, 
+#a lower median pupil-teacher ratio, and a lower median status of their population. 
+```
+

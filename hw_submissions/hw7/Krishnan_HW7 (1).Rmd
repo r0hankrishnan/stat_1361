@@ -1,0 +1,345 @@
+---
+title: "Homework 7"
+author: "Rohan Krishnan"
+date: "2024-03-29"
+output: pdf_document
+---
+```{r, message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(ISLR2)
+library(randomForest)
+library(tree)
+library(BART)
+library(gbm)
+library(ggtree)
+```
+
+## Problem 1
+**No submission required**
+
+## Problem 2
+
+### ISLR Chapter 8 Conceptual Exercise 2
+Equation 8.12 is $$ f(x) = \sum_{b=1}^B\lambda \hat{f}^b(x)$$ where $\hat{f}^b(x)$ the $b$th tree with 1 split. 1 split trees only have one variable. Since the total function for $x$ adds the outcome for each, teh model is additive.
+
+### ISLR Chapter 8 Conceptual Exercise 4
+
+### ISLR Chapter 8 Conceptual Exercise 5
+
+The classification is red in majority vote and green in average probability. 
+
+## Problem 3
+
+### ISLR Chapter 8 Applied Exercise 8
+**(a)**
+```{r}
+#Split Carseats
+car <- Carseats
+set.seed(50)
+train <- sample(c(TRUE,FALSE), nrow(car), replace = TRUE)
+
+```
+
+**(b)**
+```{r}
+#Generate tree
+tree.8b <- tree(Sales ~ ., data = car[train,])
+
+#Results + Plot
+summary(tree.8b)
+plot(tree.8b)
+text(tree.8b, pretty = 0, digits = 2, cex = 0.50)
+mse.8b <- mean((predict(tree.8b, newdata = car[!train,]) - car[!train,"Sales"])^2); mse.8b
+```
+
+It looks like only a few variables were used in the tree.
+
+**(c)**
+```{r}
+cvtree.8c <- cv.tree(tree.8b)
+plot(cvtree.8c$size, cvtree.8c$dev, typ = "b", xlab = "tree size", ylab = "deviance")
+abline(v = cvtree.8c$size[which.min(cvtree.8c$dev)], lty = 2, col = "red")
+
+pruned.8c <- prune.tree(tree.8b, best = 14)
+mse.pruned <- mean((predict(pruned.8c, newdata = car[!train,]) - car[!train,"Sales"])^2); mse.pruned
+```
+
+Pruning very slightly improves performance. It appears that a good size for the tree is 14. It did not appear to actually improve the test MSE, indicating that the results of pruning individual trees is not all that effective.  
+
+**(d)**
+```{r}
+bag.8d <- randomForest(Sales~., data = car[train,], mtry = 10, ntree = 500, importance = TRUE)
+
+mse.bag <- mean((predict(bag.8d, newdata = car[!train,]) - car[!train,"Sales"])^2); mse.bag
+importance(bag.8d)
+```
+
+The mse dropped significantly to 2.9.
+
+**(e)**
+```{r}
+rf.8e <- randomForest(Sales ~ ., data = car[train,], mtry = 4, ntree = 500, importance = TRUE)
+
+mse.rf <- mean((predict(rf.8e, newdata = car[!train,]) - car[!train,"Sales"])^2); mse.rf
+importance(rf.8e)
+```
+
+The mse dropped significantly with an rf using a lower mtry value, indicating it is more effective than the pruned approach but is still higher than the bagged approach.
+
+**(f)**
+```{r, message = FALSE}
+bart.8f <- gbart(car[train,2:11], car[train,1],
+                 x.test = car[!train,2:11])
+
+mse.bart <- mean((bart.8f$yhat.test.mean - car[!train,"Sales"])^2); mse.bart
+```
+
+The mse is the lowest so far at 1.8.
+
+### ISLR Chapter 8 Applied Exercise 10
+**(a)**
+```{r}
+hit <- Hitters
+hit <- hit[!is.na(hit$Salary),]
+hit$logSalary <- log(hit$Salary)
+hit$Salary <- NULL
+hit <- hit[,c(20,1:19)]
+```
+
+**(b)**
+```{r}
+train <- rep(1:200)
+test <- rep(201:263)
+```
+
+**(c)**
+```{r}
+set.seed(50)
+lambdas <- 10 ^ seq(-3,0, by = 0.10)
+boost.10c <- lapply(lambdas, function(lam){
+  gbm(logSalary ~ ., data = hit[train,], 
+                 distribution = "gaussian", n.trees = 1000,
+                 shrinkage = lam)
+})
+
+boost.10c.errs <- sapply(boost.10c, function(model){
+  pr <- predict(model, hit[train,], n.trees = 1000)
+  mean((pr - hit[train,]$logSalary)^2)
+})
+
+plot(lambdas, boost.10c.errs, type = "b", xlab = "lambdas",
+     ylab = "Train MSE")
+```
+
+**(d)**
+```{r}
+boost.10d.errs <- sapply(boost.10c, function(model){
+  pr <- predict(model, hit[test,], n.trees = 1000)
+  mean((pr - hit[test,]$logSalary)^2)
+})
+
+plot(lambdas, boost.10d.errs, type = "b", xlab = "lambdas", 
+  ylab = "Testing MSE")
+abline(v = lambdas[which.min(boost.10d.errs)], lty = 2, col = "red")
+
+min(boost.10d.errs)
+```
+
+**(e)**
+```{r}
+reg.10e <- lm(logSalary ~ ., data = hit[train,])
+mse.linreg <- mean((predict(reg.10e, hit[test,])-hit[test,]$logSalary)^2); mse.linreg
+```
+```{r}
+library(glmnet)
+x <- model.matrix(logSalary ~ ., data = hit[train,])
+x.test<- model.matrix(logSalary ~., data = hit[test,])
+y <- hit[train,"logSalary"]
+
+ridgereg.10f <- glmnet(x,y,alpha =1)
+mse.ridreg <- mean((predict(ridgereg.10f, x.test)-hit[test,]$logSalary)^2); mse.ridreg
+```
+
+```{r}
+mean(boost.10d.errs)
+```
+The linear regression and ridge regression have worse test MSEs than the boosting method.
+
+**(f)**
+```{r}
+summary(boost.10c[[which.min(boost.10d.errs)]])
+```
+
+**(g)**
+```{r}
+set.seed(50)
+bag.10g <- randomForest(logSalary ~ ., data = hit[train,], mtry = 19, ntree = 1000)
+mse.bag10g <- mean((predict(bag.10g, hit[test,]) - hit[test,]$logSalary)^2); mse.bag10g
+```
+
+## Problem 4
+A regression tree could give you probabilities of the variable being 1, which would allow you to set different thresholds and potentially fine tune your predictive model for specific scenarios. 
+
+## Problem 5
+**(a)**
+```{r}
+df.train <- read.csv("~/Downloads/HW7train.csv", header = TRUE)
+
+set.seed(50)
+train <- sample(1:nrow(df.train),900,replace = F)
+test <- setdiff(1:nrow(df.train), train)
+```
+
+**(b)**
+```{r}
+rf <- randomForest(y ~ ., data = df.train[train,], mtry = 3, ntree = 500, importance = TRUE)
+
+importance(rf)
+
+#All three graphs are displayed together below
+
+```
+X1 appears to be the most important.
+
+**(c)**
+```{r}
+set.seed(50)
+mse.perm <- rep(0,10)
+
+for (i in 1:10){
+  perm.df.train <- df.train[train,]
+  perm.df.train[,i+1] <- sample(perm.df.train[,i+1])
+  rf.perm <- randomForest(y~., data = perm.df.train, mtry = 3, ntree = 500, importance = TRUE)
+  perm.pred <- predict(rf.perm, df.train[test,])
+  mse.perm[i] <- mean((perm.pred - df.train[test,]$y)^2)
+}
+
+#All three graphs are displayed together below
+
+```
+
+Now it appears like X7 is most important.
+
+**(d)**
+```{r}
+set.seed(50)
+mse.loo <- rep(0,10)
+
+for(i in 1:10){
+  loo.df.train <- df.train[train,]
+  loo.df.train[,i+1] <- NULL
+  rf.loo <- randomForest(y~., data = loo.df.train, mtry = 3, ntree = 500, importance= TRUE)
+  loo.pred <- predict(rf.loo, df.train[test,])
+  mse.loo[i] <- mean((loo.pred - df.train[test,]$y)^2)
+}
+
+par(mfrow=c(3,1))
+
+plot(rf$importance[,1],type="b",axes=F,ann=F,ylim=c(0,max(rf$importance[,1])+1))
+axis(1,at=1:10,lab=names(df.train)[-1])
+axis(2,at=seq(0,max(rf$importance)+1,0.25),las=1)
+box()
+
+plot(mse.perm,type="b",axes=F,ann=F,ylim=c(0,max(mse.perm)+1))
+axis(1,at=1:10,lab=names(df.train)[-1])
+axis(2,at=seq(0,max(mse.perm)+1,0.25),las=1)
+box()
+
+plot(mse.loo,type="b",axes=F,ann=F,ylim=c(0,max(mse.loo)+1))
+axis(1,at=1:10,lab=names(df.train)[-1])
+axis(2,at=seq(0,max(mse.loo)+1,0.25),las=1)
+box()
+```
+It looks very similar to part **(c)**. I would trust part **(b)** as it uses OOB CV to calculate the increase in mse for each permuted variable. 
+
+**(e)**
+```{r}
+pairs(df.train)
+
+boxplot(df.train)
+```
+
+X7 has fewer outliers than X1 so when only permuting once it may seem to make more of an effect.
+
+## Problem 6
+**(a)**
+```{r}
+set.seed(100)
+x_train <- matrix(runif(1000), nrow = 100)
+y_train <- rowSums(x_train) + rnorm(100, 0, 0.25^2)
+train <- data.frame(Y = y_train, x_train)
+```
+
+**(b)**
+```{r}
+set.seed(100)
+x_test <- matrix(runif(100000), nrow = 10000)
+y_test <- rowSums(x_test) + rnorm(10000, 0, 0.25^2)
+test <- data.frame(Y = y_test, x_test)
+```
+
+**(c)**
+```{r}
+bag.6c <-randomForest(Y ~ ., data = train, mtry = 10, ntree = 500, importance = TRUE)
+rf.6c <- randomForest(Y ~ ., data = train, mtry = 3, ntree = 500, importance = TRUE)
+
+mse.bag6c <- mean((predict(bag.6c, test) - test$Y)^2); mse.bag6c
+mse.rf6c <- mean((predict(rf.6c, test) - test$Y)^2); mse.rf6c
+```
+
+**(d)**
+```{r}
+set.seed(100)
+err.bagg <- rep(0,50)
+err.rf <- rep(0,50)
+
+for(i in 1:50){
+  x.train <- matrix(runif(1000), nrow = 100)
+  y.train <- rowSums(x.train) + rnorm(100, 0 , 0.25^2)
+  train.d <- data.frame(Y = y.train, x.train)
+  bag <- randomForest(Y ~ ., data = train.d, mtry = 10, ntree = 500, importance = TRUE)
+  rf <- randomForest(Y ~ ., data = train.d, mtry = 3, ntree = 500, importance = TRUE)
+  err.bagg[i] <- mean((predict(bag, test) - test$Y)^2)
+  err.rf[i] <- mean((predict(rf, test) - test$Y)^2)
+}
+```
+
+**(e)**
+```{r}
+set.seed(100)
+sigma <- seq(from = 0, to = 2, by = 0.5)
+sig.err.bagg <- rep(0,length(sigma))
+sig.err.rf <- rep(0, length(sigma))
+
+for(a in 1:length(sigma)){
+  sigma.loop <- sigma[a]
+  
+  for(i in 1:50){
+  x.train <- matrix(runif(1000), nrow = 100)
+  y.train <- rowSums(x.train) + rnorm(100, 0 , sigma.loop^2)
+  train.d <- data.frame(Y = y.train, x.train)
+  bag <- randomForest(Y ~ ., data = train.d, mtry = 10, ntree = 500, importance = TRUE)
+  rf <- randomForest(Y ~ ., data = train.d, mtry = 3, ntree = 500, importance = TRUE)
+  err.bagg[i] <- mean((predict(bag, test) - test$Y)^2)
+  err.rf[i] <- mean((predict(rf, test) - test$Y)^2)
+  }
+  
+  sig.err.bagg[a] <- mean(err.bagg)
+  sig.err.rf[a] <- mean(err.rf)
+}
+
+```
+
+**(e)**
+```{r}
+plot(sigma, sig.err.bagg, type = "n", xlim = c(0,2), ylim = c(0, 3), 
+     xlab = "Sigma", ylab = "Avg MSE", main = "Bagged vs RF")
+lines(sigma, sig.err.bagg, type = "b", col = "red")
+lines(sigma, sig.err.rf, type = "b", col = "blue")
+legend("topright", legend = c("Bagged", "RF"), 
+       col = c("red", "blue"), lty = 1)
+
+```
+
+As the signal to noise ratio increases, the random forest performs better as it is more biased (doesn't use every variable) whereas with very little noise, bagging does well because it can use all of the predictors and fit relationships very closely. With there is a lot of noise, the bagging algorithm begins to overfit to the noise. 
